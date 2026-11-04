@@ -11,6 +11,8 @@ The volunteer servers are operated by third parties, not by PathGuard; do not us
 
 Privacy policy: https://babarmehboobali.github.io/pathguard-vpn/privacy/
 
+Contact: babarmehboobali+pathguard@gmail.com
+
 ## Build
 
 ```
