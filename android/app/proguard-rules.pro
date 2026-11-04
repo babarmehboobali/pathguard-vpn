@@ -1,0 +1,4 @@
+-keep class de.blinkt.openvpn.** { *; }
+-keep class info.guardianproject.** { *; }
+-keep class com.wireguard.android.** { *; }
+-dontwarn org.conscrypt.**
