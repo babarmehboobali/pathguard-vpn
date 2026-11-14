@@ -1,12 +1,12 @@
-name: Build test APK
+name: Build PathGuard Play bundle
 
 on:
   push:
-    branches: [ "**" ]
+    branches: [ "release/pathguard-1.0.5-bundle" ]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   apk:
@@ -47,31 +47,16 @@ jobs:
 
       - name: Unit tests
         run: flutter test
-        continue-on-error: true
 
-      - name: Build APK (test-signed, no release key)
-        run: flutter build apk --release
-
-      - name: Rename APK
+      - name: Build and stage the bundle for local signing
         run: |
-          VER=$(grep '^version:' pubspec.yaml | awk '{print $2}' | tr '+' '-')
-          APK="PathGuardVPN-${VER}-test-${GITHUB_RUN_NUMBER}.apk"
-          cp build/app/outputs/flutter-apk/app-release.apk "$APK"
-          echo "APK=$APK" >> "$GITHUB_ENV"
+          flutter build appbundle --release
+          cp build/app/outputs/bundle/release/app-release.aab PathGuardVPN-1.0.5-1005-unsigned.aab
+          zip -d PathGuardVPN-1.0.5-1005-unsigned.aab 'META-INF/*.SF' 'META-INF/*.RSA' 'META-INF/*.DSA' 'META-INF/*.EC'
+          unzip -tq PathGuardVPN-1.0.5-1005-unsigned.aab
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PathGuardVPN-test-apk
-          path: ${{ env.APK }}
-
-      - name: Publish as a test release (easy download on phone)
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: test-build-${{ github.run_number }}
-          name: Test build ${{ github.run_number }} (${{ github.ref_name }})
-          prerelease: true
-          files: ${{ env.APK }}
-          body: |
-            Test APK built automatically from branch ${{ github.ref_name }}.
-            Signed with a temporary test key: uninstall any Play Store version first.
-            Not for Play Store upload.
+          name: PathGuardVPN-1.0.5-1005-unsigned
+          path: PathGuardVPN-1.0.5-1005-unsigned.aab
+          if-no-files-found: error
