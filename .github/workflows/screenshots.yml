@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Fonts (Arabic + emoji flags)
-        run: sudo apt-get update && sudo apt-get install -y fonts-noto-core fonts-noto-color-emoji && ls /usr/share/fonts/truetype/noto | grep -E "Arabic|Emoji" | head
+        run: sudo apt-get update && sudo apt-get install -y fonts-noto-core fonts-noto-color-emoji && fc-list | grep -iE "emoji|NotoSansArabic-Regular|Symbols2|NotoSans-Regular|NotoSansMath" | head
       - uses: subosito/flutter-action@v2
         with:
           channel: stable

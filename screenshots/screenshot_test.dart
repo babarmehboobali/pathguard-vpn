@@ -16,7 +16,6 @@ import 'package:pathguard_vpn/screens/appearance_screen.dart';
 import 'package:pathguard_vpn/screens/countries_screen.dart';
 import 'package:pathguard_vpn/screens/home_screen.dart';
 import 'package:pathguard_vpn/screens/settings_screen.dart';
-import 'package:pathguard_vpn/screens/tools_screen.dart';
 import 'package:pathguard_vpn/services/locale_service.dart';
 import 'package:pathguard_vpn/services/vpngate_service.dart';
 import 'package:pathguard_vpn/services/theme_service.dart';
@@ -76,12 +75,19 @@ Future<void> _style(String mode, String accent, String layout) async {
   AppTheme.apply(mode: mode, accent: accent);
 }
 
+const _fallback = <String>['NotoSans', 'NotoSansArabic', 'NotoSansSymbols', 'NotoSansSymbols2', 'NotoSansMath', 'NotoColorEmoji'];
+
+ThemeData _withFallback(ThemeData t) => t.copyWith(
+      textTheme: t.textTheme.apply(fontFamily: 'Roboto', fontFamilyFallback: _fallback),
+      primaryTextTheme: t.primaryTextTheme.apply(fontFamily: 'Roboto', fontFamilyFallback: _fallback),
+    );
+
 Widget _app(Widget home, {String lang = 'en'}) {
   return RepaintBoundary(
     key: _shotKey,
     child: MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.current,
+      theme: _withFallback(AppTheme.current),
       locale: Locale(lang),
       supportedLocales: L10n.supportedLocales,
       localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
@@ -152,7 +158,11 @@ void main() {
     await _loadFont('MaterialIcons', <String>['$mf/MaterialIcons-Regular.otf']);
     const noto = '/usr/share/fonts/truetype/noto';
     await _loadFont('NotoSansArabic', <String>['$noto/NotoSansArabic-Regular.ttf', '$noto/NotoSansArabic-Bold.ttf']);
-    await _loadFont('NotoColorEmoji', <String>['$noto/NotoColorEmoji.ttf']);
+    await _loadFont('NotoColorEmoji', <String>['$noto/NotoColorEmoji.ttf', '/usr/share/fonts/truetype/noto-color-emoji/NotoColorEmoji.ttf']);
+    await _loadFont('NotoSans', <String>['$noto/NotoSans-Regular.ttf', '$noto/NotoSans-Bold.ttf']);
+    await _loadFont('NotoSansSymbols', <String>['$noto/NotoSansSymbols-Regular.ttf']);
+    await _loadFont('NotoSansSymbols2', <String>['$noto/NotoSansSymbols2-Regular.ttf']);
+    await _loadFont('NotoSansMath', <String>['$noto/NotoSansMath-Regular.ttf']);
   });
 
   setUp(() async {
@@ -189,7 +199,6 @@ void main() {
   testWidgets('04 minimal light', (t) => shot(t, '04_light_minimal', () => const HomeScreen(), mode: 'light', accent: 'ocean', layout: 'minimal', vpn: _connected));
   testWidgets('05 countries', (t) => shot(t, '05_countries', () => CountriesScreen(initialServers: VpnGateService.parseCsvForTest(File('assets/vpngate_snapshot.csv').readAsStringSync()))));
   testWidgets('06 appearance', (t) => shot(t, '06_appearance', () => const AppearanceScreen(), accent: 'sunset'));
-  testWidgets('07 tools', (t) => shot(t, '07_tools', () => const ToolsScreen()));
   testWidgets('08 settings', (t) => shot(t, '08_settings', () => const SettingsScreen()));
   testWidgets('09 arabic', (t) => shot(t, '09_arabic', () => const HomeScreen(), lang: 'ar', accent: 'gold', vpn: _connected));
 }
