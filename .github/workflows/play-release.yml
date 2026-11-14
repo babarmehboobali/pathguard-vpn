@@ -1,0 +1,113 @@
+name: Release to Google Play
+
+# Run from GitHub → Actions → "Release to Google Play" → Run workflow.
+# Needs these repository secrets (Settings → Secrets and variables → Actions):
+#   UPLOAD_KEYSTORE_BASE64   the upload keystore (.jks) encoded as base64
+#   UPLOAD_KEYSTORE_PASSWORD keystore password
+#   UPLOAD_KEY_ALIAS         key alias
+#   UPLOAD_KEY_PASSWORD      key password
+#   PLAY_SERVICE_ACCOUNT_JSON  JSON key of a Google Cloud service account invited in Play Console
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: "Play track (internal = testers only; production = everyone)"
+        required: true
+        default: internal
+        type: choice
+        options: [internal, alpha, beta, production]
+      rollout:
+        description: "Production rollout fraction (0.1 = 10%). Ignored for other tracks."
+        required: false
+        default: "0.2"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Check secrets are set
+        env:
+          KS: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+          SA: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          [ -n "$KS" ] || { echo "::error::Secret UPLOAD_KEYSTORE_BASE64 is missing"; exit 1; }
+          [ -n "$SA" ] || { echo "::error::Secret PLAY_SERVICE_ACCOUNT_JSON is missing"; exit 1; }
+
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup || true
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install SWIG
+        run: sudo apt-get update && sudo apt-get install -y swig
+
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: Fetch OpenVPN engine
+        run: bash tool/fetch_ovpn.sh
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Restore upload key (never committed)
+        env:
+          KS: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.UPLOAD_KEY_PASSWORD }}
+        run: |
+          echo "$KS" | tr -d ' \n\r' | base64 -d > "$RUNNER_TEMP/upload.jks"
+          cat > android/key.properties <<EOF
+          storeFile=$RUNNER_TEMP/upload.jks
+          storePassword=$KS_PASS
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASS
+          EOF
+
+      - name: Tests
+        run: flutter pub get && flutter test
+
+      - name: Build signed app bundle
+        run: flutter build appbundle --release
+
+      - name: Upload to Google Play (testing track)
+        if: inputs.track != 'production'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.ali_babar.pathguard_vpn
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          track: ${{ inputs.track }}
+          status: completed
+          whatsNewDirectory: distribution/whatsnew
+
+      - name: Upload to Google Play (production, staged rollout)
+        if: inputs.track == 'production'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.ali_babar.pathguard_vpn
+          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          track: production
+          status: inProgress
+          userFraction: ${{ inputs.rollout }}
+          whatsNewDirectory: distribution/whatsnew
+
+      - name: Remove key from runner
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload.jks" android/key.properties
