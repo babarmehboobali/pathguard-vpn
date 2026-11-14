@@ -156,7 +156,7 @@ class _CountriesScreenState extends State<CountriesScreen> {
   Widget _savedServerTile(Server s) {
     final live = _isLive(s);
     return _box(
-      child: ListTile(
+      child: Material(type: MaterialType.transparency, child: ListTile(
         leading: Text(flagEmoji(s.countryShort), style: const TextStyle(fontSize: 26)),
         title: Text(s.countryLong, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text(
@@ -166,7 +166,7 @@ class _CountriesScreenState extends State<CountriesScreen> {
         ),
         trailing: _starButton(s),
         onTap: () => Navigator.pop(context, s),
-      ),
+      )),
     );
   }
 

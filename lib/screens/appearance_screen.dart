@@ -121,7 +121,7 @@ class AppearanceScreen extends StatelessWidget {
           width: selected ? 1.6 : 1,
         ),
       ),
-      child: ListTile(
+      child: Material(type: MaterialType.transparency, child: ListTile(
         leading: _LayoutPreview(layout: layout),
         title: Text(context.tr('layout_$layout'),
             style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -131,7 +131,7 @@ class AppearanceScreen extends StatelessWidget {
             ? Icon(Icons.check_circle_rounded, color: AppTheme.accentStart)
             : Icon(Icons.circle_outlined, color: AppTheme.textSecondary),
         onTap: () => ThemeService.instance.update(layout: layout),
-      ),
+      )),
     );
   }
 }

@@ -91,7 +91,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         color: AppTheme.surface,
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: ListTile(
+                      child: Material(type: MaterialType.transparency, child: ListTile(
                         leading: Icon(_modeIcon(r.mode), color: AppTheme.accentStart),
                         title: Text(r.place.isEmpty ? r.mode.toUpperCase() : r.place,
                             style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -107,7 +107,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
                           ],
                         ),
-                      ),
+                      )),
                     );
                   },
                 ),

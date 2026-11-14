@@ -1288,7 +1288,7 @@ class _HomeScreenState extends State<HomeScreen> {
           color: AppTheme.surfaceGlass,
           borderRadius: BorderRadius.circular(20),
         ),
-        child: ListTile(
+        child: Material(type: MaterialType.transparency, child: ListTile(
           dense: dense,
           leading: Text(_serverRowFlag(), style: TextStyle(fontSize: dense ? 24 : 30)),
           title: Text(_serverRowTitle(), style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -1298,7 +1298,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
           trailing: Icon(Icons.chevron_right, color: AppTheme.textSecondary),
           onTap: _pickServer,
-        ),
+        )),
       );
 
   Widget _statusText2(bool isConnected) {
