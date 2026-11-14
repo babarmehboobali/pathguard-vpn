@@ -140,7 +140,8 @@ class _CountriesScreenState extends State<CountriesScreen> {
               ? Border.all(color: AppTheme.accentStart.withValues(alpha: 0.7), width: 1.4)
               : null,
         ),
-        child: child,
+        clipBehavior: Clip.antiAlias,
+        child: Material(type: MaterialType.transparency, child: child),
       );
 
   Widget _sectionTitle(String t) => Padding(

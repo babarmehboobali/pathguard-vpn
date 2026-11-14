@@ -168,8 +168,8 @@ class _LayoutPreview extends StatelessWidget {
     };
     return Container(
       width: 40,
-      height: 56,
-      padding: const EdgeInsets.all(5),
+      height: 64,
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: AppTheme.background,
         borderRadius: BorderRadius.circular(8),
