@@ -5,6 +5,9 @@ on:
   push:
     paths: [ "screenshots/**", ".github/workflows/screenshots.yml" ]
 
+permissions:
+  contents: write
+
 jobs:
   shots:
     runs-on: ubuntu-latest
@@ -27,3 +30,11 @@ jobs:
         with:
           name: store-screenshots
           path: build/screenshots/*.png
+
+      - name: Publish screenshots as a release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: store-screenshots-${{ github.run_number }}
+          name: Store screenshots ${{ github.run_number }}
+          prerelease: true
+          files: build/screenshots/*.png
