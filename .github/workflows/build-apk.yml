@@ -28,6 +28,9 @@ jobs:
       - name: Install SWIG
         run: sudo apt-get update && sudo apt-get install -y swig
 
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
       - name: Fetch OpenVPN engine
         run: bash tool/fetch_ovpn.sh
 

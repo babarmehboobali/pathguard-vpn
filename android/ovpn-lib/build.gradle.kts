@@ -10,7 +10,7 @@ val ics = rootProject.file("ovpn/main")
 android {
     namespace = "de.blinkt.openvpn"
     compileSdk = 37
-    ndkVersion = "30.0.14904198"
+    ndkVersion = "28.2.13676358"
 
     defaultConfig {
         minSdk = 24
