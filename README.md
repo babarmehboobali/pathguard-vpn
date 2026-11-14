@@ -17,11 +17,13 @@ Contact: babarmehboobali+pathguard@gmail.com
 
 ```
 git submodule update --init --recursive
+./tool/fetch_ovpn.sh   # downloads the ics-openvpn engine into android/ovpn (needs swig)
 flutter pub get
 flutter build apk --release
 ```
 
-Release signing reads `android/key.properties` (not included). The source uses Google's test AdMob IDs.
+Release signing reads `android/key.properties` (not included). Without key.properties the release APK is signed with a test key (fine for testing, not for Play).
+GitHub Actions builds a test APK on every push (see the Releases / Actions tab).
 
 ## Credits
 

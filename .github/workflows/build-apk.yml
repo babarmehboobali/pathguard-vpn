@@ -1,0 +1,74 @@
+name: Build test APK
+
+on:
+  push:
+    branches: [ "**" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup || true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install SWIG
+        run: sudo apt-get update && sudo apt-get install -y swig
+
+      - name: Fetch OpenVPN engine
+        run: bash tool/fetch_ovpn.sh
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Get packages
+        run: flutter pub get
+
+      - name: Unit tests
+        run: flutter test
+        continue-on-error: true
+
+      - name: Build APK (test-signed, no release key)
+        run: flutter build apk --release
+
+      - name: Rename APK
+        run: |
+          VER=$(grep '^version:' pubspec.yaml | awk '{print $2}' | tr '+' '-')
+          APK="PathGuardVPN-${VER}-test-${GITHUB_RUN_NUMBER}.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "$APK"
+          echo "APK=$APK" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PathGuardVPN-test-apk
+          path: ${{ env.APK }}
+
+      - name: Publish as a test release (easy download on phone)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: test-build-${{ github.run_number }}
+          name: Test build ${{ github.run_number }} (${{ github.ref_name }})
+          prerelease: true
+          files: ${{ env.APK }}
+          body: |
+            Test APK built automatically from branch ${{ github.ref_name }}.
+            Signed with a temporary test key: uninstall any Play Store version first.
+            Not for Play Store upload.

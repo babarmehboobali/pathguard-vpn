@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../l10n/l10n.dart';
 import '../services/settings_service.dart';
 import '../services/vpn_channel.dart';
 
@@ -56,25 +57,25 @@ class _SplitTunnelScreenState extends State<SplitTunnelScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: AppBar(title: const Text('Exclude apps'), backgroundColor: AppTheme.surface),
+      appBar: AppBar(title: Text(context.tr('exclude_apps')), backgroundColor: AppTheme.surface),
       body: Column(
         children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Text(
-              'Exclude banking apps so they use your normal connection',
+              context.tr('exclude_apps_sub'),
               style: TextStyle(color: AppTheme.textSecondary),
             ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: TextField(
-              decoration: const InputDecoration(
-                hintText: 'Search apps',
-                prefixIcon: Icon(Icons.search),
+              decoration: InputDecoration(
+                hintText: context.tr('search_apps'),
+                prefixIcon: const Icon(Icons.search),
                 filled: true,
                 fillColor: AppTheme.surface,
-                border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(20))),
+                border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(20))),
               ),
               onChanged: _filter,
             ),
@@ -89,7 +90,7 @@ class _SplitTunnelScreenState extends State<SplitTunnelScreen> {
                       final pkg = app['package'] ?? '';
                       return CheckboxListTile(
                         title: Text(app['label'] ?? pkg),
-                        subtitle: Text(pkg, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                        subtitle: Text(pkg, style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
                         value: _excluded.contains(pkg),
                         onChanged: (_) => _toggle(pkg),
                       );

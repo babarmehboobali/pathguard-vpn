@@ -36,6 +36,12 @@ class Server {
     this.measuredPing = 0,
   });
 
+  /// Failed the reachability test (TCP connect) — hidden from lists and skipped.
+  bool get isDead => measuredPing < 0;
+
+  /// Passed the reachability test.
+  bool get isLive => measuredPing > 0;
+
   String get decodedConfig {
     try {
       return String.fromCharCodes(base64Decode(openVpnConfigBase64));

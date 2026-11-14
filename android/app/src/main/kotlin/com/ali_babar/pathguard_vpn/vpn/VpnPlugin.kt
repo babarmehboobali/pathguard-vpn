@@ -128,6 +128,23 @@ class VpnPlugin :
                     }
                 }
             }
+            "openVpnSettings" -> {
+                // Kill switch: Android's own "Always-on VPN" + "Block connections without VPN"
+                val ctx = activity ?: applicationContext
+                if (ctx == null) {
+                    result.success(false)
+                    return
+                }
+                try {
+                    val intent = Intent(android.provider.Settings.ACTION_VPN_SETTINGS)
+                    if (ctx !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    ctx.startActivity(intent)
+                    result.success(true)
+                } catch (e: Exception) {
+                    log("openVpnSettings failed: ${e.message}")
+                    result.success(false)
+                }
+            }
             else -> result.notImplemented()
         }
     }

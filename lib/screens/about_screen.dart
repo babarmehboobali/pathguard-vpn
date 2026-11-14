@@ -1,26 +1,30 @@
 import 'package:flutter/material.dart';
+import '../l10n/l10n.dart';
 import '../theme/app_theme.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
 
+  static const String version = '1.0.5';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.background,
-      appBar: AppBar(title: const Text('About'), backgroundColor: AppTheme.surface),
-      body: const Padding(
-        padding: EdgeInsets.all(24),
+      appBar: AppBar(title: Text(context.tr('about')), backgroundColor: AppTheme.surface),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('PathGuard VPN – Free Proxy', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-            SizedBox(height: 8),
-            Text('Version 1.0.0'),
-            SizedBox(height: 16),
-            Text('A free, open-source VPN client using VPN Gate, Tor, and optional WARP.'),
-            SizedBox(height: 16),
-            Text('Licensed under GPL-3.0. See NOTICE.md for component credits.'),
+            const Text('PathGuard VPN – Free Proxy',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text(context.tr('version', {'v': version})),
+            const SizedBox(height: 16),
+            Text(context.tr('about_desc')),
+            const SizedBox(height: 16),
+            Text(context.tr('about_license')),
           ],
         ),
       ),

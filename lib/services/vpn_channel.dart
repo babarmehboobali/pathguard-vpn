@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
 import '../models/vpn_state.dart';
+import 'ads_service.dart';
 import 'crash_service.dart';
 
 class VpnChannel {
@@ -17,6 +18,8 @@ class VpnChannel {
       });
 
   Future<bool> prepare() async {
+    // The VPN permission dialog sends the app to background briefly.
+    AdsService.instance.suppressAppOpen();
     try {
       final result = await _method.invokeMethod<bool>('prepare');
       await CrashService.instance.recordError('channel prepare -> $result', StackTrace.current);
@@ -53,6 +56,16 @@ class VpnChannel {
 
   Future<void> setSplitTunnel(List<String> disallowed) async {
     await _method.invokeMethod('setSplitTunnel', {'disallowed': disallowed});
+  }
+
+  /// Opens Android VPN settings (Always-on VPN / Block connections without VPN).
+  Future<bool> openVpnSettings() async {
+    AdsService.instance.suppressAppOpen(const Duration(minutes: 5));
+    try {
+      return await _method.invokeMethod<bool>('openVpnSettings') ?? false;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<List<Map<String, String>>> listInstalledApps() async {

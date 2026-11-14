@@ -1,7 +1,7 @@
 name: pathguard_vpn
 description: PathGuard VPN – Free Proxy
 publish_to: 'none'
-version: 1.0.2+1002
+version: 1.0.5+1005
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -10,11 +10,13 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   cupertino_icons: ^1.0.8
   google_mobile_ads: ^9.2.0
   in_app_update: ^5.0.0
   shared_preferences: ^2.3.2
-  intl: ^0.20.3
+  intl: any # version pinned by flutter_localizations
   http: ^1.2.2
   connectivity_plus: ^7.0.0
   permission_handler: ^11.3.1
@@ -23,6 +25,8 @@ dependencies:
   collection: ^1.18.0
   path_provider: ^2.1.6
   share_plus: ^10.0.0
+  in_app_review: ^2.0.10
+  file_picker: ^10.3.0
 
 dev_dependencies:
   flutter_test:
@@ -33,6 +37,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/vpngate_snapshot.csv
+    - assets/l10n/
     - assets/brand/logo.png
 
 flutter_launcher_icons:

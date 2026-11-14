@@ -1,0 +1,12 @@
+{
+  "banner_enabled": true,
+  "interstitial_every_actions": 3,
+  "interstitial_min_gap_sec": 60,
+  "app_open_enabled": true,
+  "app_open_min_gap_sec": 240,
+  "app_open_min_background_sec": 30,
+  "first_connect_reward_offer": true,
+  "smart_fallback_default": true,
+  "min_supported_build": 0,
+  "announcement": {}
+}

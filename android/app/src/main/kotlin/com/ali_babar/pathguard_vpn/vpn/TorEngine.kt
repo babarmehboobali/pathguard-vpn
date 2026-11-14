@@ -115,6 +115,11 @@ class TorEngine(
                     onError("Stealth Tor transports (obfs4 & Snowflake) timed out")
                     return
                 }
+                if (!verifyRequestedCountry(exitCountry, connectedTransport)) {
+                    stop()
+                    onError("No free server available right now")
+                    return
+                }
                 establishTunAndHev(exitCountry, disallowedApps, connectedTransport)
             } else {
                 onProgress("Bootstrapping Tor 5%…")
@@ -141,6 +146,11 @@ class TorEngine(
                 if (verifiedIp == null) {
                     stop()
                     onError("Tor circuit verification failed — try Stealth or WARP")
+                    return
+                }
+                if (!verifyRequestedCountry(exitCountry, verifiedIp)) {
+                    stop()
+                    onError("No free server available right now")
                     return
                 }
                 establishTunAndHev(exitCountry, disallowedApps, verifiedIp)
@@ -381,7 +391,7 @@ class TorEngine(
 
     private fun exitCountryFromSig(sig: String): String? {
         val last = sig.substringAfterLast(":", "")
-        return last.takeIf { it.length == 2 && it != "an" && it != "au" }
+        return last.takeIf { it.length == 2 && it != "an" }
     }
 
     private fun reloadTorConfigLive(exitCountry: String?, torrcContent: String) {
@@ -412,7 +422,8 @@ class TorEngine(
     private fun waitForTorBootstrap(maxWaitMs: Long, prefix: String): Boolean {
         val startMs = System.currentTimeMillis()
         val deadline = startMs + maxWaitMs
-        var ready = torBootstrapped || isSocksPortListening()
+        // Do not treat leftover SOCKS as immediate success after an ExitNodes change
+        var ready = torBootstrapped
         var lastPct = 10
 
         while (!ready && System.currentTimeMillis() < deadline) {
@@ -428,7 +439,7 @@ class TorEngine(
             } catch (_: InterruptedException) {
                 return false
             }
-            ready = torBootstrapped || isSocksPortListening()
+            ready = torBootstrapped
         }
         if (ready) torBootstrapped = true
         return ready
@@ -655,6 +666,27 @@ class TorEngine(
         }
     }
 
+
+    private fun verifyRequestedCountry(exitCountry: String?, verifiedLabel: String): Boolean {
+        val cc = exitCountry?.takeIf { it.isNotBlank() && !it.equals("auto", ignoreCase = true) } ?: return true
+        if (!cc.equals("SA", ignoreCase = true) && !cc.equals("PK", ignoreCase = true)) return true
+        val ip = Regex("""(\d{1,3}(?:\.\d{1,3}){3})""").find(verifiedLabel)?.groupValues?.get(1)
+            ?: verifiedLabel
+        return checkExitCountry(ip, cc)
+    }
+
+    private fun checkExitCountry(ip: String, expected: String): Boolean {
+        return try {
+            val conn = URL("https://ipwho.is/$ip").openConnection() as HttpURLConnection
+            conn.connectTimeout = 5000
+            conn.readTimeout = 5000
+            if (conn.responseCode == 200) {
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                body.contains("\"country_code\":\"${expected.uppercase()}\"", ignoreCase = true)
+            } else false
+        } catch (_: Exception) { false }
+    }
+
     private fun tearDownTunnelLocked() {
         if (tproxyStarted || TProxyService.TProxyIsRunning()) {
             try {
@@ -673,6 +705,11 @@ class TorEngine(
         synchronized(tunnelLock) {
             tearDownTunnelLocked()
         }
+        try {
+            service.stopService(Intent(service, org.torproject.jni.TorService::class.java))
+        } catch (_: Exception) {}
+        torDaemonStarted = false
+        torBootstrapped = false
     }
 }
 

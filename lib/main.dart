@@ -2,6 +2,9 @@ import 'dart:ui' show PlatformDispatcher;
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'app.dart';
+import 'services/locale_service.dart';
+import 'services/theme_service.dart';
+import 'services/remote_config_service.dart';
 import 'services/consent_service.dart';
 import 'services/ads_service.dart';
 import 'services/update_service.dart';
@@ -18,7 +21,9 @@ void main() {
       CrashService.instance.recordError(error, stack);
       return true;
     };
-    runApp(const PathGuardApp());
+    // Load the saved language before the first frame (fast, local only).
+    Future.wait<void>([LocaleService.instance.load(), ThemeService.instance.load()])
+        .whenComplete(() => runApp(const PathGuardApp()));
     unawaited(_initBackground());
   }, (error, stack) {
     CrashService.instance.recordError(error, stack);
@@ -26,6 +31,9 @@ void main() {
 }
 
 Future<void> _initBackground() async {
+  try {
+    await RemoteConfigService.instance.init().timeout(const Duration(seconds: 3));
+  } catch (_) {}
   try {
     await ConsentService().requestUmpConsent().timeout(const Duration(seconds: 8));
   } catch (_) {}

@@ -7,10 +7,14 @@ class ConnectButton extends StatefulWidget {
   final VpnConnectionState state;
   final VoidCallback onPressed;
 
+  /// Outer diameter (Classic 196, Compact 150, Minimal 230).
+  final double size;
+
   const ConnectButton({
     super.key,
     required this.state,
     required this.onPressed,
+    this.size = 196,
   });
 
   @override
@@ -43,8 +47,8 @@ class _ConnectButtonState extends State<ConnectButton>
     final isConnected = widget.state == VpnConnectionState.connected;
     final isError = widget.state == VpnConnectionState.error;
 
-    const double outerSize = 196;
-    const double innerSize = 158;
+    final double outerSize = widget.size;
+    final double innerSize = widget.size * 0.806;
 
     return GestureDetector(
       onTap: widget.onPressed,
@@ -64,7 +68,7 @@ class _ConnectButtonState extends State<ConnectButton>
                 boxShadow: [
                   if (isConnected)
                     BoxShadow(
-                      color: const Color(0xFF00E676).withOpacity(0.38),
+                      color: AppTheme.connected.withOpacity(0.38),
                       blurRadius: 36,
                       spreadRadius: 6,
                     )
@@ -89,7 +93,7 @@ class _ConnectButtonState extends State<ConnectButton>
               animation: _controller,
               builder: (context, _) {
                 return CustomPaint(
-                  size: const Size(outerSize, outerSize),
+                  size: Size(outerSize, outerSize),
                   painter: _RingPainter(
                     progress: _controller.value,
                     state: widget.state,
@@ -106,24 +110,24 @@ class _ConnectButtonState extends State<ConnectButton>
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: isConnected
-                    ? const Color(0xFF0E2A22)
-                    : const Color(0xFF1E2433),
+                    ? AppTheme.connectedCore
+                    : AppTheme.buttonCore,
                 border: Border.all(
                   color: isConnected
-                      ? const Color(0xFF00E676).withOpacity(0.6)
-                      : Colors.white.withOpacity(0.08),
+                      ? AppTheme.connected.withOpacity(0.6)
+                      : AppTheme.divider,
                   width: 1.5,
                 ),
               ),
               child: Center(
                 child: Icon(
                   Icons.power_settings_new_rounded,
-                  size: 64,
+                  size: widget.size * 0.326,
                   color: isConnected
-                      ? const Color(0xFF00E676)
+                      ? AppTheme.connected
                       : isError
                           ? AppTheme.danger
-                          : Colors.white,
+                          : AppTheme.textPrimary,
                 ),
               ),
             ),
@@ -153,14 +157,14 @@ class _RingPainter extends CustomPainter {
     final trackPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 6
-      ..color = Colors.white.withOpacity(0.07);
+      ..color = AppTheme.divider;
     canvas.drawCircle(center, radius, trackPaint);
 
     if (state == VpnConnectionState.connected) {
       final connectedPaint = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 6.5
-        ..color = const Color(0xFF00E676);
+        ..color = AppTheme.connected;
       canvas.drawCircle(center, radius, connectedPaint);
       return;
     }
@@ -182,8 +186,8 @@ class _RingPainter extends CustomPainter {
       final gradient = SweepGradient(
         startAngle: 0,
         endAngle: 2 * math.pi,
-        colors: const [
-          Color(0x0000E5FF),
+        colors: [
+          AppTheme.accentStart.withValues(alpha: 0),
           AppTheme.accentStart,
           AppTheme.accentEnd,
           AppTheme.accentStart,

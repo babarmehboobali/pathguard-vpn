@@ -26,9 +26,9 @@ android {
         applicationId = "com.ali_babar.pathguard_vpn"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1002
-        versionName = "1.0.2"
-        manifestPlaceholders["admobAppId"] = "ca-app-pub-3940256099942544~3347511713"
+        versionCode = 1005
+        versionName = "1.0.5"
+        manifestPlaceholders["admobAppId"] = "ca-app-pub-1235513372019694~4943613486"
     }
 
     signingConfigs {

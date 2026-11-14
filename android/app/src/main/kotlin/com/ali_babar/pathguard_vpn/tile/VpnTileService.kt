@@ -16,21 +16,23 @@ class VpnTileService : TileService() {
         } else {
             val prepare = VpnService.prepare(this)
             if (prepare != null) {
-                // Open the main activity so the user can grant permission / consent
                 val intent = Intent(this, MainActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 startActivityAndCollapse(intent)
                 return
             }
-            PathGuardVpnService.start(this, "free", null, null, null, null, true)
-            tile.state = Tile.STATE_ACTIVE
+            // Never start Free with a null config (avoids OpenVPN FGS ANR).
+            val intent = Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivityAndCollapse(intent)
+            tile.state = Tile.STATE_INACTIVE
         }
         tile.updateTile()
     }
 
     override fun onStartListening() {
         super.onStartListening()
-        // Tile state can be synced from a static flag in PathGuardVpnService if desired
     }
 }

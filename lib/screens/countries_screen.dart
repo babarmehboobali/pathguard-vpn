@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
+
+import '../l10n/l10n.dart';
 import '../models/server.dart';
+import '../services/favorites_service.dart';
 import '../services/vpngate_service.dart';
 import '../theme/app_theme.dart';
 import '../utils/flag.dart';
+import '../widgets/banner_ad_widget.dart';
 
+/// Pops with:
+///  * a [Server]  → connect to that Free server
+///  * `'auto'`    → Free "Auto (fastest)"
+///  * a Map       → Tor / Stealth exit country {countryCode, countryLong, mode}
 class CountriesScreen extends StatefulWidget {
   final List<Server>? initialServers;
   final String currentMode;
@@ -22,8 +30,13 @@ class CountriesScreen extends StatefulWidget {
 
 class _CountriesScreenState extends State<CountriesScreen> {
   final VpnGateService _vpngate = VpnGateService();
+  final FavoritesService _favs = FavoritesService.instance;
+
   List<Server> _allServers = <Server>[];
   Map<String, List<Server>> _groupedByCountry = <String, List<Server>>{};
+  List<Server> _favorites = <Server>[];
+  List<Server> _recents = <Server>[];
+  Set<String> _favKeys = <String>{};
   bool _loading = false;
   String _searchQuery = '';
   late bool _isTorCountryPicker;
@@ -41,9 +54,28 @@ class _CountriesScreenState extends State<CountriesScreen> {
     } else if (!_isTorCountryPicker) {
       _loadServers(force: false);
     }
+    _loadFavorites();
   }
 
-  void _applyServers(List<Server> list) {
+  Future<void> _loadFavorites() async {
+    final f = await _favs.favorites();
+    final r = await _favs.recents();
+    if (!mounted) return;
+    setState(() {
+      _favorites = f;
+      _recents = r;
+      _favKeys = f.map(FavoritesService.keyOf).toSet();
+    });
+  }
+
+  Future<void> _toggleFav(Server s) async {
+    await _favs.toggleFavorite(s);
+    await _loadFavorites();
+  }
+
+  void _applyServers(List<Server> all) {
+    // Hide servers that failed the reachability test (they would not connect).
+    final list = all.where((s) => !s.isDead).toList();
     final grouped = <String, List<Server>>{};
     for (final s in list) {
       final key = s.countryLong.isNotEmpty ? s.countryLong : s.countryShort;
@@ -63,10 +95,9 @@ class _CountriesScreenState extends State<CountriesScreen> {
       if (!mounted) return;
       if (res.servers.isNotEmpty) {
         _applyServers(res.servers);
-        final scored = await _vpngate.pingAndScore(res.servers, maxParallel: 25, timeoutMs: 800);
-        if (mounted && scored.isNotEmpty) {
-          _applyServers(scored);
-        }
+        final scored =
+            await _vpngate.pingAndScore(res.servers, maxParallel: 25, timeoutMs: 800);
+        if (mounted && scored.isNotEmpty) _applyServers(scored);
       } else {
         setState(() => _loading = false);
       }
@@ -76,7 +107,7 @@ class _CountriesScreenState extends State<CountriesScreen> {
   }
 
   String _formatSpeed(int bps) {
-    if (bps <= 0) return 'Fast';
+    if (bps <= 0) return context.tr('fast');
     final mbps = bps / (1000 * 1000);
     if (mbps >= 10) return '${mbps.toStringAsFixed(0)} Mbps';
     return '${mbps.toStringAsFixed(1)} Mbps';
@@ -88,14 +119,94 @@ class _CountriesScreenState extends State<CountriesScreen> {
     return '$p ms';
   }
 
+  bool _isLive(Server s) => _allServers.any((e) => e.ip == s.ip && !e.isDead);
+
+  Widget _starButton(Server s) {
+    final fav = _favKeys.contains(FavoritesService.keyOf(s));
+    return IconButton(
+      tooltip: context.tr('favorites'),
+      icon: Icon(fav ? Icons.star_rounded : Icons.star_border_rounded,
+          color: fav ? Colors.amber : AppTheme.textSecondary),
+      onPressed: () => _toggleFav(s),
+    );
+  }
+
+  Widget _box({required Widget child, bool highlight = false}) => Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: AppTheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: highlight
+              ? Border.all(color: AppTheme.accentStart.withValues(alpha: 0.7), width: 1.4)
+              : null,
+        ),
+        child: child,
+      );
+
+  Widget _sectionTitle(String t) => Padding(
+        padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
+        child: Text(t.toUpperCase(),
+            style: TextStyle(
+                color: AppTheme.accentStart,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8)),
+      );
+
+  Widget _savedServerTile(Server s) {
+    final live = _isLive(s);
+    return _box(
+      child: ListTile(
+        leading: Text(flagEmoji(s.countryShort), style: const TextStyle(fontSize: 26)),
+        title: Text(s.countryLong, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(
+          '${s.ip} • ${live ? context.tr('online_now') : context.tr('may_be_offline')}',
+          style: TextStyle(
+              color: live ? AppTheme.connected : AppTheme.textSecondary, fontSize: 12),
+        ),
+        trailing: _starButton(s),
+        onTap: () => Navigator.pop(context, s),
+      ),
+    );
+  }
+
+  /// Pinned Free country (SA / PK): listed only while it has working servers.
+  /// Pops a Map with mode 'free' → Home connects to the best server in that country.
+  Widget _pinnedCountryTile(String code, String name) {
+    final servers = _allServers
+        .where((s) => s.countryShort.toUpperCase() == code && s.openVpnConfigBase64.isNotEmpty)
+        .toList();
+    // Only listed when it has at least one working server.
+    if (servers.isEmpty) return const SizedBox.shrink();
+    final subtitle =
+        '${context.tr('n_servers', {'n': servers.length})} • ${_formatPing(servers.first)} • '
+        '${_formatSpeed(servers.first.speed)}';
+    return _box(
+      child: ListTile(
+        leading: Text(flagEmoji(code), style: const TextStyle(fontSize: 28)),
+        title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(subtitle,
+            style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+        trailing: Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+        onTap: () => Navigator.pop(context, <String, String>{
+          'countryCode': code,
+          'countryLong': name,
+          'mode': 'free',
+        }),
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------- Tor / Stealth
+
   Widget _buildTorCountryPicker(BuildContext context) {
     final countries = VpnGateService.torExitCountries.where((c) {
       if (_searchQuery.trim().isEmpty) return true;
       final q = _searchQuery.toLowerCase();
-      return c.name.toLowerCase().contains(q) || c.code.toLowerCase().contains(q);
+      return c.name.toLowerCase().contains(q) ||
+          c.code.toLowerCase().contains(q) ||
+          VpnGateService.matchesAlias(c.code, q);
     }).toList();
-
-    final modeTitle = widget.currentMode == 'stealth' ? 'Stealth' : 'Tor';
 
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -103,49 +214,45 @@ class _CountriesScreenState extends State<CountriesScreen> {
       itemBuilder: (context, index) {
         final item = countries[index];
         final isAuto = item.code == 'auto';
-        final flag = isAuto ? '🌐' : flagEmoji(item.code);
-        final isSelected = (widget.selectedCountryCode ?? 'auto').toUpperCase() ==
-            item.code.toUpperCase();
+        final isSelected =
+            (widget.selectedCountryCode ?? 'auto').toUpperCase() == item.code.toUpperCase();
+        final sparse = VpnGateService.torSparseExits.contains(item.code);
 
-        // Also show how many OpenVPN TCP-443 servers exist in this country if in Stealth mode
         final matchingFreeCount = isAuto
             ? _allServers.length
             : _allServers
                 .where((s) => s.countryShort.toUpperCase() == item.code.toUpperCase())
                 .length;
 
-        final subtitle = isAuto
-            ? 'Automatic fastest multi-hop relay (Recommended)'
-            : widget.currentMode == 'stealth' && matchingFreeCount > 0
-                ? 'Tor Exit {${item.code.toLowerCase()}} + $matchingFreeCount Stealth TCP-443 relays'
-                : '$modeTitle Exit Node {${item.code.toLowerCase()}} • StrictNodes 1';
+        String subtitle;
+        if (isAuto) {
+          subtitle = context.tr('tor_auto_sub');
+        } else if (widget.currentMode == 'stealth' && matchingFreeCount > 0) {
+          subtitle = context.tr('stealth_exit_sub', {'code': item.code, 'n': matchingFreeCount});
+        } else {
+          subtitle = context.tr('tor_exit_sub', {'code': item.code});
+        }
+        if (sparse) subtitle = '$subtitle\n${context.tr('fewer_relays')}';
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          decoration: BoxDecoration(
-            color: AppTheme.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: isSelected
-                ? Border.all(color: AppTheme.accentStart.withOpacity(0.7), width: 1.4)
-                : null,
-          ),
+        return _box(
+          highlight: isSelected,
           child: ListTile(
-            leading: Text(flag, style: const TextStyle(fontSize: 28)),
-            title: Text(
-              item.name,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            subtitle: Text(
-              subtitle,
-              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-            ),
+            leading: Text(isAuto ? '🌐' : flagEmoji(item.code),
+                style: const TextStyle(fontSize: 28)),
+            title: Text(isAuto ? context.tr('tor_any_country') : item.name,
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: Text(subtitle,
+                style: TextStyle(
+                    color: sparse ? Colors.amber.shade200 : AppTheme.textSecondary,
+                    fontSize: 12)),
+            isThreeLine: sparse,
             trailing: isSelected
-                ? const Icon(Icons.check_circle_rounded, color: Color(0xFF00E676))
-                : const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
+                ? Icon(Icons.check_circle_rounded, color: AppTheme.connected)
+                : Icon(Icons.chevron_right, color: AppTheme.textSecondary),
             onTap: () {
               Navigator.pop(context, <String, String>{
                 'countryCode': item.code,
-                'countryLong': item.name,
+                'countryLong': isAuto ? '' : item.name,
                 'mode': widget.currentMode,
               });
             },
@@ -155,44 +262,154 @@ class _CountriesScreenState extends State<CountriesScreen> {
     );
   }
 
+  // --------------------------------------------------------------------- Free
+
+  List<Widget> _buildFreeList(List<MapEntry<String, List<Server>>> filteredCountries) {
+    final out = <Widget>[];
+    final searching = _searchQuery.trim().isNotEmpty;
+
+    if (!searching) {
+      out.add(_box(
+        child: ListTile(
+          leading: const Text('⚡', style: TextStyle(fontSize: 26)),
+          title: Text(context.tr('server_auto_fastest'),
+              style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: Text(context.tr('auto_sub'),
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+          trailing: Icon(Icons.bolt_rounded, color: AppTheme.accentStart),
+          onTap: () => Navigator.pop(context, 'auto'),
+        ),
+      ));
+      out.add(_pinnedCountryTile('SA', 'Saudi Arabia'));
+      out.add(_pinnedCountryTile('PK', 'Pakistan'));
+      if (_favorites.isNotEmpty) {
+        out.add(_sectionTitle(context.tr('favorites')));
+        out.addAll(_favorites.map(_savedServerTile));
+      }
+      final recentsNotFav =
+          _recents.where((r) => !_favKeys.contains(FavoritesService.keyOf(r))).toList();
+      if (recentsNotFav.isNotEmpty) {
+        out.add(_sectionTitle(context.tr('recent')));
+        out.addAll(recentsNotFav.map(_savedServerTile));
+      }
+      out.add(_sectionTitle(context.tr('all_locations')));
+    }
+
+    for (final entry in filteredCountries) {
+      final countryName = entry.key;
+      final servers = entry.value;
+      if (servers.isEmpty) continue;
+      final best = servers.first;
+      final flag = flagEmoji(best.countryShort);
+
+      if (servers.length == 1) {
+        out.add(_box(
+          child: ListTile(
+            leading: Text(flag, style: const TextStyle(fontSize: 28)),
+            title: Text(countryName, style: const TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: Text(
+              '${context.tr('one_server')} • ${_formatPing(best)} • ${_formatSpeed(best.speed)}',
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+            ),
+            trailing: _starButton(best),
+            onTap: () => Navigator.pop(context, best),
+          ),
+        ));
+        continue;
+      }
+
+      out.add(_box(
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            leading: Text(flag, style: const TextStyle(fontSize: 28)),
+            title: Text(countryName, style: const TextStyle(fontWeight: FontWeight.w600)),
+            subtitle: Text(
+              '${context.tr('n_servers', {'n': servers.length})} • '
+              '${context.tr('best', {'ping': _formatPing(best)})} • ${_formatSpeed(best.speed)}',
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, best),
+                  child: Text(context.tr('fastest')),
+                ),
+                Icon(Icons.expand_more, color: AppTheme.textSecondary),
+              ],
+            ),
+            children: servers.map((s) {
+              return ListTile(
+                contentPadding: const EdgeInsetsDirectional.only(start: 24, end: 8),
+                title: Text(s.ip,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                subtitle: Text('${_formatPing(s)} • ${_formatSpeed(s.speed)} • ${s.hostName}',
+                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                trailing: _starButton(s),
+                onTap: () => Navigator.pop(context, s),
+              );
+            }).toList(),
+          ),
+        ),
+      ));
+    }
+    if (filteredCountries.isEmpty && !searching) {
+      out.add(Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Text(context.tr('no_free_now'),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: AppTheme.textSecondary)),
+            TextButton(
+              onPressed: () => _loadServers(force: true),
+              child: Text(context.tr('retry')),
+            ),
+          ],
+        ),
+      ));
+    }
+    return out;
+  }
+
   @override
   Widget build(BuildContext context) {
     final filteredCountries = _groupedByCountry.entries.where((entry) {
       if (_searchQuery.trim().isEmpty) return true;
       final q = _searchQuery.toLowerCase();
+      if (entry.value.isEmpty) return false;
+      final short = entry.value.first.countryShort;
       return entry.key.toLowerCase().contains(q) ||
-          entry.value.first.countryShort.toLowerCase().contains(q) ||
-          entry.value.any((s) => s.ip.contains(q));
+          short.toLowerCase().contains(q) ||
+          VpnGateService.matchesAlias(short, q) ||
+          entry.value.any((s) => s.ip.contains(q) || s.hostName.toLowerCase().contains(q));
     }).toList();
 
     final titleText = _isTorCountryPicker
-        ? 'Select Exit Country (${VpnGateService.torExitCountries.length - 1} countries)'
-        : 'Select Location (${_allServers.length} servers)';
+        ? context.tr('countries_title_exit', {'n': VpnGateService.torExitCountries.length - 1})
+        : context.tr('countries_title_servers',
+            {'n': _allServers.length, 'c': _groupedByCountry.length});
 
     return Scaffold(
       backgroundColor: AppTheme.background,
+      bottomNavigationBar: const BannerAdWidget(),
       appBar: AppBar(
         backgroundColor: AppTheme.background,
         elevation: 0,
-        title: Text(
-          titleText,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        ),
+        title: Text(titleText, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
         actions: [
           if (!_isTorCountryPicker)
             if (_loading)
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
                 child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
+                    width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
               )
             else
               IconButton(
                 icon: const Icon(Icons.refresh_rounded),
-                tooltip: 'Refresh servers',
+                tooltip: context.tr('refresh'),
                 onPressed: () => _loadServers(force: true),
               ),
         ],
@@ -203,11 +420,11 @@ class _CountriesScreenState extends State<CountriesScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
             child: TextField(
               onChanged: (v) => setState(() => _searchQuery = v),
-              style: const TextStyle(color: Colors.white),
+              style: TextStyle(color: AppTheme.textPrimary),
               decoration: InputDecoration(
-                hintText: 'Search country or IP…',
-                hintStyle: const TextStyle(color: AppTheme.textSecondary),
-                prefixIcon: const Icon(Icons.search, color: AppTheme.textSecondary),
+                hintText: context.tr('search_hint'),
+                hintStyle: TextStyle(color: AppTheme.textSecondary),
+                prefixIcon: Icon(Icons.search, color: AppTheme.textSecondary),
                 filled: true,
                 fillColor: AppTheme.surface,
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -221,35 +438,31 @@ class _CountriesScreenState extends State<CountriesScreen> {
           if (_isTorCountryPicker)
             Expanded(child: _buildTorCountryPicker(context))
           else if (_loading && _allServers.isEmpty)
-            const Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(strokeWidth: 2),
-                    SizedBox(height: 12),
-                    Text(
-                      'Loading worldwide servers…',
-                      style: TextStyle(color: AppTheme.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else if (filteredCountries.isEmpty)
             Expanded(
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      'No servers found',
-                      style: TextStyle(color: AppTheme.textSecondary),
-                    ),
+                    const CircularProgressIndicator(strokeWidth: 2),
+                    const SizedBox(height: 12),
+                    Text(context.tr('loading_servers'),
+                        style: TextStyle(color: AppTheme.textSecondary)),
+                  ],
+                ),
+              ),
+            )
+          else if (filteredCountries.isEmpty && _searchQuery.trim().isNotEmpty)
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(context.tr('no_servers'),
+                        style: TextStyle(color: AppTheme.textSecondary)),
                     const SizedBox(height: 8),
                     TextButton(
                       onPressed: () => _loadServers(force: true),
-                      child: const Text('Retry'),
+                      child: Text(context.tr('retry')),
                     ),
                   ],
                 ),
@@ -257,104 +470,9 @@ class _CountriesScreenState extends State<CountriesScreen> {
             )
           else
             Expanded(
-              child: ListView.builder(
+              child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                itemCount: filteredCountries.length,
-                itemBuilder: (context, index) {
-                  final entry = filteredCountries[index];
-                  final countryName = entry.key;
-                  final servers = entry.value;
-                  final best = servers.first;
-                  final flag = flagEmoji(best.countryShort);
-
-                  if (servers.length == 1) {
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 10),
-                      decoration: BoxDecoration(
-                        color: AppTheme.surface,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: ListTile(
-                        leading: Text(flag, style: const TextStyle(fontSize: 28)),
-                        title: Text(
-                          countryName,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Text(
-                          '1 server • ${best.ip} •${_formatSpeed(best.speed)}',
-                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-                        ),
-                        trailing: Text(
-                          _formatPing(best),
-                          style: TextStyle(
-                            color: best.measuredPing > 0
-                                ? const Color(0xFF00E676)
-                                : AppTheme.textSecondary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
-                        ),
-                        onTap: () => Navigator.pop(context, best),
-                      ),
-                    );
-                  }
-
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    decoration: BoxDecoration(
-                      color: AppTheme.surface,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Theme(
-                      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                      child: ExpansionTile(
-                        leading: Text(flag, style: const TextStyle(fontSize: 28)),
-                        title: Text(
-                          countryName,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Text(
-                          '${servers.length} servers • Best: ${_formatPing(best)} •${_formatSpeed(best.speed)}',
-                          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, best),
-                              child: const Text('Fastest'),
-                            ),
-                            const Icon(Icons.expand_more, color: AppTheme.textSecondary),
-                          ],
-                        ),
-                        children: servers.map((s) {
-                          return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 24),
-                            title: Text(
-                              s.ip,
-                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                            ),
-                            subtitle: Text(
-                              '${_formatSpeed(s.speed)} •${s.hostName}',
-                              style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-                            ),
-                            trailing: Text(
-                              _formatPing(s),
-                              style: TextStyle(
-                                color: s.measuredPing > 0
-                                    ? const Color(0xFF00E676)
-                                    : AppTheme.textSecondary,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 12,
-                              ),
-                            ),
-                            onTap: () => Navigator.pop(context, s),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  );
-                },
+                children: _buildFreeList(filteredCountries),
               ),
             ),
         ],
@@ -362,4 +480,3 @@ class _CountriesScreenState extends State<CountriesScreen> {
     );
   }
 }
-

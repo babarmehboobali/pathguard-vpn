@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import androidx.core.app.NotificationCompat
 
@@ -29,7 +30,16 @@ object NotificationHelper {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .build()
-        service.startForeground(NOTIFICATION_ID, notification)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            service.startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+        } else {
+            service.startForeground(NOTIFICATION_ID, notification)
+        }
     }
 
     fun stop(service: PathGuardVpnService) {
@@ -54,4 +64,3 @@ object NotificationHelper {
         }
     }
 }
-

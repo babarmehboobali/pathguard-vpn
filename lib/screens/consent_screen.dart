@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/consent_service.dart';
+import '../l10n/l10n.dart';
+import 'language_screen.dart';
 
 class ConsentScreen extends StatelessWidget {
   final VoidCallback onAccepted;
@@ -18,19 +20,30 @@ class ConsentScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'PathGuard VPN Disclosure',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      context.tr('consent_title'),
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: context.tr('language'),
+                    icon: Icon(Icons.translate_rounded, color: AppTheme.textPrimary),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LanguageScreen()),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
               Expanded(
                 child: SingleChildScrollView(
                   child: Text(
-                    'This app uses Android VpnService to create an encrypted tunnel for all device traffic. This is its core function.\n\n'
-                    'Traffic is routed through third-party volunteer servers (VPN Gate, University of Tsukuba) or the Tor network, or Cloudflare WARP if Fast mode is enabled. Those operators may log connection metadata. Use HTTPS for sensitive data.\n\n'
-                    'PathGuard does not collect, log, or sell browsing data, DNS queries, or traffic contents.\n\n'
-                    'Ads are shown by Google AdMob. Ad requests are not modified or redirected for monetization.',
-                    style: const TextStyle(fontSize: 16, color: AppTheme.textSecondary, height: 1.5),
+                    context.tr('consent_body'),
+                    style: TextStyle(fontSize: 16, color: AppTheme.textSecondary, height: 1.5),
                   ),
                 ),
               ),
@@ -45,7 +58,7 @@ class ConsentScreen extends StatelessWidget {
                         side: const BorderSide(color: AppTheme.danger),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                       ),
-                      child: const Text('Decline'),
+                      child: Text(context.tr('decline')),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -57,10 +70,10 @@ class ConsentScreen extends StatelessWidget {
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.accentStart,
-                        foregroundColor: Colors.black,
+                        foregroundColor: AppTheme.onAccent,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                       ),
-                      child: const Text('I Agree'),
+                      child: Text(context.tr('agree')),
                     ),
                   ),
                 ],

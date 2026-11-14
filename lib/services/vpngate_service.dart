@@ -12,6 +12,7 @@ class VpnGateService {
   static const List<String> vpnGateCsvUrls = <String>[
     'https://www.vpngate.net/api/iphone/',
     'http://www.vpngate.net/api/iphone/',
+    'https://cdn.jsdelivr.net/gh/GeorgeXie2333/vpngate-list-mirror@latest/data/vpngate.csv',
     'https://raw.githubusercontent.com/Xmister/vpngate-mirror/master/vpngate.csv',
     'https://raw.githubusercontent.com/aleskxyz/vpngate-scraper/master/vpngate.csv',
     'https://api.allorigins.win/raw?url=http%3A%2F%2Fwww.vpngate.net%2Fapi%2Fiphone%2F',
@@ -20,44 +21,80 @@ class VpnGateService {
 
   // Additional open-source JSON / raw .ovpn config repositories (MIT/GPL licensed)
   static const List<String> extraJsonListUrls = <String>[
-    'https://raw.githubusercontent.com/hookzof/socks5_list/master/tg/vpngate.json',
+    // hookzof raw SOCKS list removed — not a published volunteer OpenVPN source
   ];
 
-  /// 30+ countries available for Tor & Stealth exit-node selection (`ExitNodes {cc}` + `StrictNodes 1`)
+  /// Tor & Stealth exit countries (`ExitNodes {cc}` + `StrictNodes 1`).
+  /// Only countries with enough Tor exit relays to connect reliably are listed.
+  /// Countries with very few exits (e.g. Saudi Arabia, Pakistan, most of Latin
+  /// America and Africa) were removed because strict exits there usually fail.
   static const List<({String code, String name})> torExitCountries = <({String code, String name})>[
     (code: 'auto', name: 'Fastest / Any Country'),
     (code: 'US', name: 'United States'),
-    (code: 'GB', name: 'United Kingdom'),
     (code: 'DE', name: 'Germany'),
-    (code: 'FR', name: 'France'),
     (code: 'NL', name: 'Netherlands'),
+    (code: 'FR', name: 'France'),
+    (code: 'GB', name: 'United Kingdom'),
     (code: 'SE', name: 'Sweden'),
     (code: 'CH', name: 'Switzerland'),
     (code: 'CA', name: 'Canada'),
-    (code: 'JP', name: 'Japan'),
-    (code: 'SG', name: 'Singapore'),
-    (code: 'AU', name: 'Australia'),
-    (code: 'IT', name: 'Italy'),
-    (code: 'ES', name: 'Spain'),
-    (code: 'PL', name: 'Poland'),
-    (code: 'RO', name: 'Romania'),
     (code: 'FI', name: 'Finland'),
     (code: 'NO', name: 'Norway'),
     (code: 'AT', name: 'Austria'),
+    (code: 'PL', name: 'Poland'),
+    (code: 'RO', name: 'Romania'),
     (code: 'CZ', name: 'Czechia'),
+    (code: 'ES', name: 'Spain'),
+    (code: 'IT', name: 'Italy'),
+    (code: 'LU', name: 'Luxembourg'),
+    (code: 'IS', name: 'Iceland'),
     (code: 'IE', name: 'Ireland'),
     (code: 'BE', name: 'Belgium'),
     (code: 'DK', name: 'Denmark'),
-    (code: 'HK', name: 'Hong Kong'),
-    (code: 'IN', name: 'India'),
-    (code: 'BR', name: 'Brazil'),
-    (code: 'IS', name: 'Iceland'),
-    (code: 'LU', name: 'Luxembourg'),
     (code: 'PT', name: 'Portugal'),
     (code: 'BG', name: 'Bulgaria'),
     (code: 'HU', name: 'Hungary'),
+    (code: 'MD', name: 'Moldova'),
+    (code: 'UA', name: 'Ukraine'),
+    (code: 'JP', name: 'Japan'),
+    (code: 'SG', name: 'Singapore'),
+    (code: 'HK', name: 'Hong Kong'),
+    (code: 'IN', name: 'India'),
+    (code: 'AU', name: 'Australia'),
+    (code: 'BR', name: 'Brazil'),
     (code: 'KR', name: 'South Korea'),
   ];
+
+  /// Exit countries that work but have fewer relays (labelled "may be slower").
+  static const Set<String> torSparseExits = <String>{'IS', 'MD', 'UA', 'HK', 'IN', 'BR', 'KR'};
+
+
+
+  /// Search aliases for pinned / named countries (case-insensitive).
+  static const Map<String, List<String>> countryAliases = <String, List<String>>{
+    'SA': <String>[
+      'sa',
+      'saudi',
+      'saudi arabia',
+      'ksa',
+      'kingdom of saudi arabia',
+      'السعودية',
+    ],
+    'PK': <String>[
+      'pk',
+      'pakistan',
+      'pak',
+      'پاکستان',
+    ],
+  };
+
+  static bool matchesAlias(String code, String query) {
+    final q = query.toLowerCase().trim();
+    if (q.isEmpty) return false;
+    final aliases = countryAliases[code.toUpperCase()];
+    if (aliases == null) return false;
+    return aliases.any((a) => a == q || a.contains(q) || q.contains(a));
+  }
 
   /// Shared in-memory server list so CountriesScreen opens instantaneously without re-fetching.
   static List<Server> cachedMemoryServers = <Server>[];
@@ -293,7 +330,14 @@ class VpnGateService {
     final pool = (cleanCc != null && cleanCc.length == 2 && cleanCc != 'UN')
         ? servers.where((s) => s.countryShort.toUpperCase() == cleanCc).toList()
         : servers;
-    final searchList = pool.isNotEmpty ? pool : servers;
+    // Specific country requested with no in-country servers: do not fall back worldwide.
+    if (cleanCc != null && cleanCc.length == 2 && cleanCc != 'UN' && pool.isEmpty) {
+      return null;
+    }
+    final searchList0 = pool.isNotEmpty ? pool : servers;
+    // Skip servers that failed the reachability test, unless that leaves none.
+    final alive = searchList0.where((s) => !s.isDead).toList();
+    final searchList = alive.isNotEmpty ? alive : searchList0;
 
     // 1. Prefer explicit TCP 443 servers
     for (final s in searchList) {
@@ -309,7 +353,7 @@ class VpnGateService {
         return s;
       }
     }
-    return searchList.first;
+    return searchList.isNotEmpty ? searchList.first : null;
   }
 
   Future<List<Server>> pingAndScore(
@@ -349,9 +393,10 @@ class VpnGateService {
           final ms = DateTime.now().difference(start).inMilliseconds;
           return s.copyWith(ping: ms, measuredPing: ms);
         } catch (_) {
+          // -1 = did not answer: hidden from the list and skipped when connecting.
           return s.copyWith(
             ping: s.ping > 0 ? s.ping : 250,
-            measuredPing: 0,
+            measuredPing: -1,
           );
         }
       });

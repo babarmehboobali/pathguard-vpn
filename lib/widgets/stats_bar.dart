@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import '../l10n/l10n.dart';
 
 class StatsBar extends StatelessWidget {
   final Duration duration;
@@ -7,13 +8,25 @@ class StatsBar extends StatelessWidget {
   final int bytesOut;
   final int? ping;
 
+  /// Live speed in bytes per second (null = hide).
+  final double? downRate;
+  final double? upRate;
+
   const StatsBar({
     super.key,
     required this.duration,
     required this.bytesIn,
     required this.bytesOut,
     this.ping,
+    this.downRate,
+    this.upRate,
   });
+
+  static String formatRate(double bps) {
+    final bits = bps * 8;
+    if (bits < 1000 * 1000) return '${(bits / 1000).toStringAsFixed(0)} kbps';
+    return '${(bits / (1000 * 1000)).toStringAsFixed(1)} Mbps';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,25 +36,31 @@ class StatsBar extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.surfaceGlass,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+        border: Border.all(color: AppTheme.divider),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _item('Time', _formatDuration(duration)),
-          _item('Down', _formatBytes(bytesIn)),
-          _item('Up', _formatBytes(bytesOut)),
-          _item('Ping', ping != null ? '${ping}ms' : '—'),
+          _item(context.tr('stat_time'), _formatDuration(duration)),
+          _item(context.tr('stat_down'), _formatBytes(bytesIn),
+              sub: downRate == null ? null : '↓ ${formatRate(downRate!)}'),
+          _item(context.tr('stat_up'), _formatBytes(bytesOut),
+              sub: upRate == null ? null : '↑ ${formatRate(upRate!)}'),
+          _item(context.tr('stat_ping'), ping != null ? '${ping}ms' : '—'),
         ],
       ),
     );
   }
 
-  Widget _item(String label, String value) => Column(
+  Widget _item(String label, String value, {String? sub}) => Column(
         children: [
-          Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 11, fontWeight: FontWeight.w500)),
+          Text(label, style: TextStyle(color: AppTheme.textSecondary, fontSize: 11, fontWeight: FontWeight.w500)),
           const SizedBox(height: 4),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+          if (sub != null) ...[
+            const SizedBox(height: 2),
+            Text(sub, style: TextStyle(color: AppTheme.connected, fontSize: 10, fontWeight: FontWeight.w600)),
+          ],
         ],
       );
 
