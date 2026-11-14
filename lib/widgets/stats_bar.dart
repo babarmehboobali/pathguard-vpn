@@ -56,10 +56,10 @@ class StatsBar extends StatelessWidget {
         children: [
           Text(label, style: TextStyle(color: AppTheme.textSecondary, fontSize: 11, fontWeight: FontWeight.w500)),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+          Text(value, textDirection: TextDirection.ltr, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
           if (sub != null) ...[
             const SizedBox(height: 2),
-            Text(sub, style: TextStyle(color: AppTheme.connected, fontSize: 10, fontWeight: FontWeight.w600)),
+            Text(sub, textDirection: TextDirection.ltr, style: TextStyle(color: AppTheme.connected, fontSize: 10, fontWeight: FontWeight.w600)),
           ],
         ],
       );
