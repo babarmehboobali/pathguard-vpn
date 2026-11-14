@@ -168,14 +168,17 @@ class _LayoutPreview extends StatelessWidget {
     };
     return Container(
       width: 40,
-      height: 64,
-      padding: const EdgeInsets.all(4),
+      height: 56,
+      padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
         color: AppTheme.background,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: AppTheme.divider),
       ),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: children),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Column(mainAxisSize: MainAxisSize.min, children: children),
+      ),
     );
   }
 }
