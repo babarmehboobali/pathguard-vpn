@@ -15,6 +15,7 @@ android {
     defaultConfig {
         minSdk = 24
         buildConfigField("boolean", "openvpn3", "false")
+        buildConfigField("String", "FLAVOR", "\"skeleton\"")
         ndk { abiFilters += listOf("arm64-v8a") }
     }
     buildFeatures {
